@@ -167,6 +167,7 @@ class DatasetHandler:
 
         plt.tight_layout()
         plt.show()
+        fig.savefig("assets/augmented_examples.png")
 
 
 if __name__ == "__main__":

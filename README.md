@@ -2,11 +2,11 @@
 
 ## Introduction
 
-This project addresses the challenge of image-based classification by utilizing the CIFAR-10 dataset and enhancing it through various data augmentation techniques. The primary goal is to evaluate how different augmentation methods impact the performance of machine learning classification algorithms. By diversifying the dataset, the project aims to improve the robustness and accuracy of the classification models.
+This project focuses on preparing a dataset for image classification by applying various data augmentation techniques to the CIFAR-10 dataset. The main objective in this phase is to generate a diverse and enriched dataset, which will be used in the subsequent phase to train a classification model and evaluate the performance improvements.
 
-### Key Objectives
-1. Enrich the CIFAR-10 dataset using diverse augmentation methods.
-2. Apply and evaluate the effects of the following augmentation techniques:
+### Key Objectives of Phase 1:
+1. Prepare the CIFAR-10 dataset with diverse augmentation methods.
+2. Implement and validate the following augmentation techniques:
    - Rotation
    - Flip
    - Crop
@@ -15,84 +15,61 @@ This project addresses the challenge of image-based classification by utilizing 
    - Zoom
    - Color Jittering
    - Cutout
-3. Analyze the impact of each augmentation method on classification performance.
+3. Create a well-structured and visually validated augmented dataset.
 
 ---
 
 ## Implementation Details
 
-The implementation was divided into several logical steps and components, detailed below.
-
 ### 1. Dataset Preparation
-The CIFAR-10 dataset was downloaded using TensorFlow's `keras.datasets` module. The dataset includes images categorized into 10 classes.
-
-#### Code Explanation:
-- **`download_dataset()`**: This method downloads the CIFAR-10 dataset and saves the images into structured directories (separate folders for training and testing data).
-- **Helper Method ` _save_images()`**: Saves the images to their respective class-labeled folders in the `train` and `test` directories.
+The CIFAR-10 dataset was downloaded and organized into directories for training and testing, with images categorized into 10 classes.
 
 #### Key Steps:
-- Check if the dataset already exists locally to avoid re-downloading.
-- Save the dataset in labeled directories for better organization.
+- **Download Dataset**: Ensures the dataset is available locally.
+- **Save Images**: Organizes images in labeled directories for efficient processing.
 
 ### 2. Data Augmentation
 
-To enrich the dataset, eight augmentation techniques were implemented. Each method applies a transformation to an image, generating multiple variations.
+Eight data augmentation techniques were implemented to enrich the dataset. Each technique creates new variations of the images to improve diversity.
 
-#### Augmentation Techniques Implemented:
-1. **Rotation (`_rotate_image`)**: Rotates images randomly by 90°, 180°, or 270°.
-2. **Flip (`_flip_image`)**: Randomly flips images horizontally.
-3. **Crop (`_crop_image`)**: Resizes images, then randomly crops them back to the original size.
-4. **Brightness Adjustment (`_adjust_brightness`)**: Adjusts image brightness within a specified range.
-5. **Noise Injection (`_inject_noise`)**: Adds Gaussian noise to the image.
-6. **Zoom (`_zoom_image`)**: Zooms into the image by a random scale factor, then crops or pads it back to the original size.
-7. **Color Jittering (`_color_jitter`)**: Adjusts the image's saturation levels.
-8. **Cutout (`_cutout_image`)**: Masks out random patches in the image to simulate occlusions.
+#### Techniques:
+1. **Rotation**: Rotates images by 90°, 180°, or 270°.
+2. **Flip**: Randomly flips images horizontally.
+3. **Crop**: Randomly crops and resizes images.
+4. **Brightness Adjustment**: Alters image brightness within a range.
+5. **Noise Injection**: Adds Gaussian noise to images.
+6. **Zoom**: Randomly zooms in on images.
+7. **Color Jittering**: Modifies image saturation and color intensity.
+8. **Cutout**: Masks random regions of the image to simulate occlusion.
 
-#### Code Explanation:
-- **`apply_augmentation()`**: Applies each augmentation technique to every image in the dataset and saves the augmented images into separate folders.
-- **Helper Method `_augment_and_save()`**: Handles directory management and saves augmented images.
-
-### 3. Visualization of Augmented Images
-
-To inspect the effectiveness of the augmentation techniques, the `display_augmented_examples()` method was implemented. This method displays the original images alongside their augmented counterparts.
-
-#### Code Explanation:
-- Selects a few sample images from the CIFAR-10 dataset.
-- Applies each augmentation method and plots the results using Matplotlib.
-
-### 4. Execution Workflow
-
-The main script executes the following steps in sequence:
-1. **Download Dataset**:
-   - The `download_dataset()` method ensures that the CIFAR-10 dataset is available locally.
-2. **Apply Augmentations**:
-   - The `apply_augmentation()` method generates augmented images and organizes them by augmentation type.
-3. **Display Augmented Examples**:
-   - The `display_augmented_examples()` method visualizes the augmented data for qualitative evaluation.
+#### Implementation:
+- The `apply_augmentation()` method systematically applies each technique and saves results in organized directories.
+- The `display_augmented_examples()` method visualizes augmented samples.
 
 ---
 
-## Results and Observations
+## Example Augmented Images
+
+Below is an example showing original images and their augmented versions using different techniques:
+
+![Augmented Examples](assets/augmented_examples.png)
+
+---
+
+## Phase 1 Observations
 
 ### Benefits of Data Augmentation:
-- **Rotation** and **Flip** enhanced invariance to orientation.
-- **Crop** and **Zoom** introduced spatial variation, aiding the model in learning scale-invariant features.
-- **Brightness Adjustment** and **Color Jittering** simulated lighting variations, improving robustness.
-- **Noise Injection** and **Cutout** added random perturbations, which helped prevent overfitting.
+- Improved variability and robustness in the dataset.
+- Techniques like **Rotation** and **Flip** enhance orientation invariance.
+- **Brightness Adjustment** and **Color Jittering** introduce lighting variations.
+- **Noise Injection** and **Cutout** simulate real-world imperfections.
 
 ### Challenges:
-- Some methods, like **Cutout**, may obscure significant parts of the image, potentially leading to lower performance if applied excessively.
-- Balancing augmentation intensity to retain meaningful data while introducing variability requires careful tuning.
+- Excessive augmentation, such as overly aggressive **Cutout**, can obscure important features.
+- Balancing augmentation parameters to retain meaningful data is critical.
 
 ---
 
-## Conclusion
+## Next Steps: Phase 2
 
-The project successfully implemented various data augmentation techniques to enhance the CIFAR-10 dataset, providing a richer and more diverse training set for image classification tasks. Each augmentation method contributed uniquely to improving the dataset's variability, aiding in developing robust machine learning models.
-
----
-
-## References
-- TensorFlow Documentation: [https://www.tensorflow.org/](https://www.tensorflow.org/)
-- CIFAR-10 Dataset: [https://www.cs.toronto.edu/~kriz/cifar.html](https://www.cs.toronto.edu/~kriz/cifar.html)
-
+In the second phase, the augmented dataset will be used to train and evaluate a classification model. Results will be compared against models trained on the original dataset to quantify the impact of data augmentation.
