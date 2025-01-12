@@ -4,16 +4,18 @@ import seaborn as sns
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.keras import layers, models
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
-from sklearn.metrics import classification_report, f1_score
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-from tensorflow.keras.applications.densenet import DenseNet121
 from tensorflow.keras import mixed_precision
+from tensorflow.keras.utils import to_categorical
+from sklearn.metrics import classification_report, f1_score
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+from tensorflow.keras.applications import VGG16, ResNet50, MobileNetV2, InceptionV3, DenseNet121
 
 # Enable mixed precision
 mixed_precision.set_global_policy('mixed_float16')
+
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 class ModelTrainer:
     def __init__(self, x_train, y_train, x_test, y_test):
@@ -80,7 +82,7 @@ class ModelTrainer:
 
     def prepare_pretrained_model(self, model_name, base_model=None, epochs=5, batch_size=64):
         """Prepare and train a pre-trained model."""
-        if model_name == "CustomCNN":
+        if model_name == "CNN":
             model = models.Sequential([
                 layers.Conv2D(32, (3, 3), activation='relu'),
                 layers.MaxPooling2D((2, 2)),
@@ -155,30 +157,16 @@ if __name__ == "__main__":
     # Create a ModelTrainer instance
     trainer = ModelTrainer(x_train, y_train, x_test, y_test)
 
-    # Train and evaluate custom CNN
-    trainer.prepare_pretrained_model(model_name="CustomCNN", base_model=None, epochs=3 if mode == 'yes' else 10, batch_size=32)
+    my_models = {
+        "CNN": None,
+        "VGG16": VGG16(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+        "ResNet50": ResNet50(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+        "MobileNetV2": MobileNetV2(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+        "DenseNet121": DenseNet121(input_shape=(32, 32, 3), include_top=False, weights='imagenet')
+    }
 
-    # Train and evaluate pre-trained models
-    vgg16_base = tf.keras.applications.VGG16(input_shape=(32, 32, 3), include_top=False, weights='imagenet')
-    trainer.prepare_pretrained_model(model_name="VGG16", base_model=vgg16_base, epochs=3 if mode == 'yes' else 5)
-
-    resnet50_base = tf.keras.applications.ResNet50(input_shape=(32, 32, 3), include_top=False, weights='imagenet')
-    trainer.prepare_pretrained_model(model_name="ResNet50", base_model=resnet50_base, epochs=3 if mode == 'yes' else 5)
-
-    mobilenetv2_base = tf.keras.applications.MobileNetV2(
-        input_shape=(32, 32, 3),
-        include_top=False,
-        weights='imagenet'
-    )
-    trainer.prepare_pretrained_model(
-        model_name="MobileNetV2",
-        base_model=mobilenetv2_base,
-        epochs=3 if mode == 'yes' else 5,
-        batch_size=32
-    )
-
-    densenet121_base = DenseNet121(input_shape=(32, 32, 3), include_top=False, weights='imagenet')
-    trainer.prepare_pretrained_model(model_name="DenseNet121", base_model=densenet121_base, epochs=3 if mode == 'yes' else 5, batch_size=32)
+    for model_name, base_model in my_models.items():
+        trainer.prepare_pretrained_model(model_name, base_model, epochs=3 if mode == 'yes' else 10, batch_size=32)
 
     # Display all results
     trainer.display_results()
