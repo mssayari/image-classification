@@ -76,7 +76,12 @@ class ModelTrainer:
         )
         augmented_data = datagen.flow(x, y, batch_size=len(x), shuffle=False)
         x_augmented, y_augmented = next(augmented_data)
-        return x_augmented, y_augmented
+
+        # Concatenate original and augmented data
+        x_combined = np.concatenate((x, x_augmented), axis=0)
+        y_combined = np.concatenate((y, y_augmented), axis=0)
+
+        return x_combined, y_combined
 
     def start(self, epochs=10, batch_size=32):
         for model_name, base_model in self.models.items():
@@ -104,7 +109,7 @@ class ModelTrainer:
     def train_model(self, model, epochs=10, batch_size=64):
         """Train the given model."""
         self.model = model
-        self.model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
         self.model.fit(self.train_ds, epochs=epochs, batch_size=batch_size, validation_data=self.test_ds, verbose=2)
 
     def evaluate_model(self, model_name, augmented):
@@ -137,7 +142,8 @@ class ModelTrainer:
         f1 = f1_score(y_true_classes, y_pred_classes, average='weighted')
         print(f"F1 Score: {f1:.4f}")
 
-        # Save results
+
+        # Save the results
         self.results.append({
             "Model": model_name + ("_augmented" if augmented else "_original"),
             "Test Loss": test_loss,
@@ -195,54 +201,40 @@ class ModelTrainer:
         print(f"\nEvaluating {model_name} Model ({'Augmented' if augmented else 'Original'})...")
         self.evaluate_model(model_name, augmented)
 
+    @staticmethod
+    def draw_plots(df):
+        """Draw the plots for each metric and model"""
+
+        # Plotting the Accuracy and Loss comparison
+        fig, axs = plt.subplots(1, 2, figsize=(14, 6))
+
+        # Plot Accuracy on the left side
+        axs[0].bar(df['Model'], df['Test Accuracy'], color='skyblue')
+        axs[0].set_title('Test Accuracy Comparison')
+        axs[0].set_ylabel('Accuracy')
+        axs[0].tick_params(axis='x', rotation=90)
+
+        # Plot Loss on the right side
+        axs[1].bar(df['Model'], df['Test Loss'], color='lightcoral')
+        axs[1].set_title('Test Loss Comparison')
+        axs[1].set_ylabel('Loss')
+        axs[1].tick_params(axis='x', rotation=90)
+
+        # Show the plot
+        plt.tight_layout()
+        plt.show()
+
+
+
     def display_results(self):
         """Display the results in a table."""
+
         # load the results from the CSV file
         df = pd.read_csv(os.path.join(self.results_path, "results.csv"))
         print(df.to_string(index=False))
 
-        # Plot Test Accuracy
-        plt.figure(figsize=(10, 6))
-        plt.bar(df['Model'], df['Test Accuracy'], color='skyblue')
-        plt.xlabel('Model')
-        plt.ylabel('Test Accuracy')
-        plt.title('Test Accuracy of Different Models')
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.show()
+        self.draw_plots(df)
 
-        # Plot Test Loss
-        plt.figure(figsize=(10, 6))
-        plt.bar(df['Model'], df['Test Loss'], color='salmon')
-        plt.xlabel('Model')
-        plt.ylabel('Test Loss')
-        plt.title('Test Loss of Different Models')
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.show()
-
-        # Plot F1 Score
-        plt.figure(figsize=(10, 6))
-        plt.bar(df['Model'], df['F1 Score'], color='lightgreen')
-        plt.xlabel('Model')
-        plt.ylabel('F1 Score')
-        plt.title('F1 Score of Different Models')
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.show()
-
-        # Line plot for all metrics
-        plt.figure(figsize=(12, 8))
-        plt.plot(df['Model'], df['Test Accuracy'], marker='o', label='Test Accuracy', color='skyblue')
-        plt.plot(df['Model'], df['Test Loss'], marker='o', label='Test Loss', color='salmon')
-        plt.plot(df['Model'], df['F1 Score'], marker='o', label='F1 Score', color='lightgreen')
-        plt.xlabel('Model')
-        plt.ylabel('Metrics')
-        plt.title('Comparison of Different Models')
-        plt.xticks(rotation=45, ha='right')
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
 
 
 if __name__ == "__main__":
