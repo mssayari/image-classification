@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -17,16 +18,71 @@ mixed_precision.set_global_policy('mixed_float16')
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
+
 class ModelTrainer:
-    def __init__(self, x_train, y_train, x_test, y_test):
-        self.x_train = x_train / 255.0  # Normalize pixel values
-        self.x_test = x_test / 255.0
-        self.y_train = to_categorical(y_train, 10)  # One-hot encode labels
-        self.y_test = to_categorical(y_test, 10)
+    def __init__(self, is_demo=False, results_path="results"):
+        self.is_demo = is_demo
         self.model = None
         self.results = []
         self.train_ds = None
         self.test_ds = None
+        self.x_train = None
+        self.y_train = None
+        self.x_test = None
+        self.y_test = None
+        self.models = {}
+        self.results_path = results_path
+
+        self.initialize_models()
+        self.load_dataset()
+
+    def initialize_models(self):
+        """Initialize all models with their respective base models."""
+        self.models = {
+            "CNN": None,
+            # "VGG16": VGG16(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+            # "ResNet50": ResNet50(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+            # "MobileNetV2": MobileNetV2(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+            # "DenseNet121": DenseNet121(input_shape=(32, 32, 3), include_top=False, weights='imagenet')
+        }
+
+    def load_dataset(self):
+        # Load CIFAR-10 dataset
+        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
+
+        if self.is_demo:
+            # Demo mode: Use a small subset of the dataset
+            print("Running in demo mode with a small dataset...")
+            self.x_train, self.y_train = self.extract_small_batch(x_train, y_train, size=5000)
+            self.x_test, self.y_test = self.extract_small_batch(x_test, y_test, size=1000)
+        else:
+            # Full mode: Use the entire dataset
+            print("Running in full mode with the complete dataset...")
+            self.x_train, self.y_train = x_train, y_train
+            self.x_test, self.y_test = x_test, y_test
+
+        self.x_train = self.x_train / 255.0  # Normalize pixel values
+        self.x_test = self.x_test / 255.0
+        self.y_train = to_categorical(self.y_train, 10)  # One-hot encode labels
+        self.y_test = to_categorical(self.y_test, 10)
+
+    def start(self):
+        for model_name, base_model in self.models.items():
+            self.prepare_pretrained_model(model_name, base_model, epochs=3 if self.is_demo else 10, batch_size=32)
+
+        self.save_results()
+        self.display_results()
+
+    def save_results(self):
+        """Save the results to a CSV file."""
+        os.makedirs(self.results_path, exist_ok=True)
+        df = pd.DataFrame(self.results)
+        df.to_csv(os.path.join(self.results_path, "results.csv"), index=False)
+    def extract_small_batch(self, x, y, size):
+        """Return a small subset of the data."""
+        idx = np.random.choice(len(x), size, replace=False)  # Randomly select indices
+        small_x, small_y = x[idx], y[idx]
+        return x[idx], y[idx].reshape(-1, 1)  # Ensure y retains the shape (n_samples, 1)
 
     def train_model(self, model, epochs=10, batch_size=64):
         """Train the given model."""
@@ -113,12 +169,8 @@ class ModelTrainer:
             test_image_generator = ImageDataGenerator()
 
         # Create data generators
-
         self.train_ds = train_image_generator.flow(self.x_train, self.y_train, batch_size=batch_size)
         self.test_ds = test_image_generator.flow(self.x_test, self.y_test, batch_size=batch_size)
-
-        # if model_name == "MobileNetV2" or model_name == "DenseNet121":
-        #     self.resize_images(self.x_train, self.x_test, batch_size=batch_size)
 
         print(f"\nTraining {model_name} Model...")
         self.train_model(model, epochs=epochs, batch_size=batch_size)
@@ -127,46 +179,17 @@ class ModelTrainer:
 
     def display_results(self):
         """Display the results in a table."""
-        df = pd.DataFrame(self.results)
-        print(df)
 
+        # load the results from the CSV file
+        df = pd.read_csv(os.path.join(self.results_path, "results.csv"))
 
-def get_small_dataset(x, y, size=1000):
-    """Return a small subset of the data."""
-    idx = np.random.choice(len(x), size, replace=False)  # Randomly select indices
-    small_x, small_y = x[idx], y[idx]
-    return x[idx], y[idx].reshape(-1, 1)  # Ensure y retains the shape (n_samples, 1)
+        print(df.to_string(index=False))
 
 
 if __name__ == "__main__":
 
-    mode = input("Do you want to run in demo mode? (yes/no): ").strip().lower()
-
-    # Load CIFAR-10 dataset
-    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
-
-    if mode == 'yes':
-        # Demo mode: Use a small subset of the dataset
-        print("Running in demo mode with a small dataset...")
-        x_train, y_train = get_small_dataset(x_train, y_train, size=5000)
-        x_test, y_test = get_small_dataset(x_test, y_test, size=1000)
-    else:
-        # Full mode: Use the entire dataset
-        print("Running in full mode with the complete dataset...")
+    running_mode = input("Do you want to run in demo mode? (yes/no): ").strip().lower()
 
     # Create a ModelTrainer instance
-    trainer = ModelTrainer(x_train, y_train, x_test, y_test)
-
-    my_models = {
-        "CNN": None,
-        "VGG16": VGG16(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
-        "ResNet50": ResNet50(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
-        "MobileNetV2": MobileNetV2(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
-        "DenseNet121": DenseNet121(input_shape=(32, 32, 3), include_top=False, weights='imagenet')
-    }
-
-    for model_name, base_model in my_models.items():
-        trainer.prepare_pretrained_model(model_name, base_model, epochs=3 if mode == 'yes' else 10, batch_size=32)
-
-    # Display all results
-    trainer.display_results()
+    trainer = ModelTrainer(is_demo=running_mode == 'yes', results_path="results")
+    trainer.start()
