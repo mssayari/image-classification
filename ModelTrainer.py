@@ -4,17 +4,12 @@ import pandas as pd
 import seaborn as sns
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from tensorflow.keras import layers, models
-from tensorflow.keras import mixed_precision
-from tensorflow.keras.utils import to_categorical
-from sklearn.metrics import classification_report, f1_score
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+import keras
+from sklearn.metrics import f1_score
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-from tensorflow.keras.applications import VGG16, ResNet50, MobileNetV2, InceptionV3, DenseNet121
 
 # Enable mixed precision
-mixed_precision.set_global_policy('mixed_float16')
+keras.mixed_precision.set_global_policy('mixed_float16')
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
@@ -40,15 +35,15 @@ class ModelTrainer:
         """Initialize all models with their respective base models."""
         self.models = {
             "CNN": None,
-            # "VGG16": VGG16(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
-            # "ResNet50": ResNet50(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
-            # "MobileNetV2": MobileNetV2(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
-            # "DenseNet121": DenseNet121(input_shape=(32, 32, 3), include_top=False, weights='imagenet')
+            "VGG16": keras.applications.VGG16(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+            "ResNet50": keras.applications.ResNet50(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+            "MobileNetV2": keras.applications.MobileNetV2(input_shape=(32, 32, 3), include_top=False, weights='imagenet'),
+            "DenseNet121": keras.applications.DenseNet121(input_shape=(32, 32, 3), include_top=False, weights='imagenet')
         }
 
     def load_dataset(self):
         # Load CIFAR-10 dataset
-        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
+        (x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()
 
         if self.is_demo:
             # Demo mode: Use a small subset of the dataset
@@ -63,12 +58,32 @@ class ModelTrainer:
 
         self.x_train = self.x_train / 255.0  # Normalize pixel values
         self.x_test = self.x_test / 255.0
-        self.y_train = to_categorical(self.y_train, 10)  # One-hot encode labels
-        self.y_test = to_categorical(self.y_test, 10)
+        self.y_train = keras.utils.to_categorical(self.y_train, 10)  # One-hot encode labels
+        self.y_test = keras.utils.to_categorical(self.y_test, 10)
 
-    def start(self):
+    @staticmethod
+    def apply_augmentations(x, y):
+        """Apply augmentations to the dataset."""
+
+        datagen = ImageDataGenerator(
+            rotation_range=20,
+            width_shift_range=0.2,
+            height_shift_range=0.2,
+            horizontal_flip=True,
+            brightness_range=[0.8, 1.2],
+            zoom_range=0.2,
+            fill_mode='nearest'
+        )
+        augmented_data = datagen.flow(x, y, batch_size=len(x), shuffle=False)
+        x_augmented, y_augmented = next(augmented_data)
+        return x_augmented, y_augmented
+
+    def start(self, epochs=10, batch_size=32):
         for model_name, base_model in self.models.items():
-            self.prepare_pretrained_model(model_name, base_model, epochs=3 if self.is_demo else 10, batch_size=32)
+            # Train and evaluate on original data
+            self.prepare_pretrained_model(model_name, base_model, epochs=3 if self.is_demo else epochs, batch_size=batch_size, augmented=False)
+            # Train and evaluate on augmented data
+            self.prepare_pretrained_model(model_name, base_model, epochs=3 if self.is_demo else epochs, batch_size=batch_size, augmented=True)
 
         self.save_results()
         self.display_results()
@@ -78,7 +93,9 @@ class ModelTrainer:
         os.makedirs(self.results_path, exist_ok=True)
         df = pd.DataFrame(self.results)
         df.to_csv(os.path.join(self.results_path, "results.csv"), index=False)
-    def extract_small_batch(self, x, y, size):
+
+    @staticmethod
+    def extract_small_batch(x, y, size):
         """Return a small subset of the data."""
         idx = np.random.choice(len(x), size, replace=False)  # Randomly select indices
         small_x, small_y = x[idx], y[idx]
@@ -90,7 +107,7 @@ class ModelTrainer:
         self.model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
         self.model.fit(self.train_ds, epochs=epochs, batch_size=batch_size, validation_data=self.test_ds, verbose=2)
 
-    def evaluate_model(self, model_name):
+    def evaluate_model(self, model_name, augmented):
         """Evaluate the trained model with optimized memory usage."""
         if not self.model:
             raise ValueError("No model has been trained yet.")
@@ -118,10 +135,11 @@ class ModelTrainer:
 
         # Compute F1 score
         f1 = f1_score(y_true_classes, y_pred_classes, average='weighted')
+        print(f"F1 Score: {f1:.4f}")
 
         # Save results
         self.results.append({
-            "Model": model_name,
+            "Model": model_name + ("_augmented" if augmented else "_original"),
             "Test Loss": test_loss,
             "Test Accuracy": test_accuracy,
             "F1 Score": f1
@@ -136,54 +154,95 @@ class ModelTrainer:
         plt.title('Confusion Matrix')
         plt.show()
 
-    def prepare_pretrained_model(self, model_name, base_model=None, epochs=5, batch_size=64):
+        # Clear the Keras session to free up memory
+        keras.backend.clear_session()
+
+    def prepare_pretrained_model(self, model_name, base_model=None, epochs=5, batch_size=64, augmented=False):
         """Prepare and train a pre-trained model."""
         if model_name == "CNN":
-            model = models.Sequential([
-                layers.Conv2D(32, (3, 3), activation='relu'),
-                layers.MaxPooling2D((2, 2)),
-                layers.Conv2D(64, (3, 3), activation='relu'),
-                layers.MaxPooling2D((2, 2)),
-                layers.Conv2D(128, (3, 3), activation='relu'),
-                layers.Flatten(),
-                layers.Dense(128, activation='relu'),
-                layers.Dropout(0.5),
-                layers.Dense(10, activation='softmax')
+            model = keras.models.Sequential([
+                keras.layers.Conv2D(32, (3, 3), activation='relu'),
+                keras.layers.MaxPooling2D((2, 2)),
+                keras.layers.Conv2D(64, (3, 3), activation='relu'),
+                keras.layers.MaxPooling2D((2, 2)),
+                keras.layers.Conv2D(128, (3, 3), activation='relu'),
+                keras.layers.Flatten(),
+                keras.layers.Dense(128, activation='relu'),
+                keras.layers.Dropout(0.5),
+                keras.layers.Dense(10, activation='softmax')
             ])
         else:
-            model = models.Sequential([
+            model = keras.models.Sequential([
                 base_model,
-                # layers.Flatten(),
-                GlobalAveragePooling2D(),
-                layers.Dense(128, activation='relu'),
-                layers.Dropout(0.5),
-                layers.Dense(10, activation='softmax')
+                keras.layers.GlobalAveragePooling2D(),
+                keras.layers.Dense(128, activation='relu'),
+                keras.layers.Dropout(0.5),
+                keras.layers.Dense(10, activation='softmax')
             ])
 
-        # Create ImageDataGenerator instances
-        if model_name == "MobileNetV2" or model_name == "DenseNet121":
-            train_image_generator = ImageDataGenerator()
-            test_image_generator = ImageDataGenerator()
+        if augmented:
+            x_train, y_train = self.apply_augmentations(self.x_train, self.y_train)
         else:
-            train_image_generator = ImageDataGenerator()
-            test_image_generator = ImageDataGenerator()
+            x_train, y_train = self.x_train, self.y_train
+
 
         # Create data generators
-        self.train_ds = train_image_generator.flow(self.x_train, self.y_train, batch_size=batch_size)
-        self.test_ds = test_image_generator.flow(self.x_test, self.y_test, batch_size=batch_size)
+        self.train_ds = ImageDataGenerator().flow(x_train, y_train, batch_size=batch_size)
+        self.test_ds = ImageDataGenerator().flow(self.x_test, self.y_test, batch_size=batch_size)
 
-        print(f"\nTraining {model_name} Model...")
+        print(f"\nTraining {model_name} Model ({'Augmented' if augmented else 'Original'})...")
         self.train_model(model, epochs=epochs, batch_size=batch_size)
-        print(f"\nEvaluating {model_name} Model...")
-        self.evaluate_model(model_name)
+        print(f"\nEvaluating {model_name} Model ({'Augmented' if augmented else 'Original'})...")
+        self.evaluate_model(model_name, augmented)
 
     def display_results(self):
         """Display the results in a table."""
-
         # load the results from the CSV file
         df = pd.read_csv(os.path.join(self.results_path, "results.csv"))
-
         print(df.to_string(index=False))
+
+        # Plot Test Accuracy
+        plt.figure(figsize=(10, 6))
+        plt.bar(df['Model'], df['Test Accuracy'], color='skyblue')
+        plt.xlabel('Model')
+        plt.ylabel('Test Accuracy')
+        plt.title('Test Accuracy of Different Models')
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plt.show()
+
+        # Plot Test Loss
+        plt.figure(figsize=(10, 6))
+        plt.bar(df['Model'], df['Test Loss'], color='salmon')
+        plt.xlabel('Model')
+        plt.ylabel('Test Loss')
+        plt.title('Test Loss of Different Models')
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plt.show()
+
+        # Plot F1 Score
+        plt.figure(figsize=(10, 6))
+        plt.bar(df['Model'], df['F1 Score'], color='lightgreen')
+        plt.xlabel('Model')
+        plt.ylabel('F1 Score')
+        plt.title('F1 Score of Different Models')
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plt.show()
+
+        # Line plot for all metrics
+        plt.figure(figsize=(12, 8))
+        plt.plot(df['Model'], df['Test Accuracy'], marker='o', label='Test Accuracy', color='skyblue')
+        plt.plot(df['Model'], df['Test Loss'], marker='o', label='Test Loss', color='salmon')
+        plt.plot(df['Model'], df['F1 Score'], marker='o', label='F1 Score', color='lightgreen')
+        plt.xlabel('Model')
+        plt.ylabel('Metrics')
+        plt.title('Comparison of Different Models')
+        plt.xticks(rotation=45, ha='right')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -192,4 +251,4 @@ if __name__ == "__main__":
 
     # Create a ModelTrainer instance
     trainer = ModelTrainer(is_demo=running_mode == 'yes', results_path="results")
-    trainer.start()
+    trainer.start(epochs=20)
